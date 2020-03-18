@@ -30,25 +30,18 @@ library(usethis)
 
 edit_r_environ(scope = c("user", "project"))
 
-twitter_app <- oauth_app(
-  "twitter",
-  key = Sys.getenv("key"),
-  secret = Sys.getenv("secret")
-)
-
-twitter_token <- oauth2.0_token(
-  oauth_endpoint(
-    authorize = NULL,
-    access = "https://api.twitter.com/oauth2/token"
-  ),
-  twitter_app,
-  client_credentials = TRUE
+token<-create_token(
+  app = "STA 141B Final Project",
+  consumer_key = Sys.getenv("key"),
+  consumer_secret = Sys.getenv("secret"),
+  access_token = Sys.getenv("Access_token"),
+  access_secret = Sys.getenv("Access_token_secret")
 )
 
 # Get the revelant tag
 # Orignial whole dataset
 
-tw <- search_tweets(q = "#coronavirus", n = 1000, include_rts = FALSE, lang = "en")
+tw <- search_tweets(q = "#trump", n = 1000, include_rts = FALSE, token = token, lang = "en")
 
 # time == created_at
 # location == location
