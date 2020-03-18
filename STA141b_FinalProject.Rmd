@@ -1,0 +1,329 @@
+---
+title: "sta 141B project"
+author: "Guangze Yu"
+date: "2020/2/28"
+output: html_document
+---
+#Package
+```{r,message=FALSE,warning=FALSE}
+library(httr)
+library(lubridate)
+library(tidyverse)
+library(rtweet)
+library(tidytext)
+library(jsonlite)
+library(ggmap)
+library(dplyr)
+library(shiny)
+library(leaflet)
+library(wordcloud)
+library(plotly)
+library(threejs)
+library(mapdeck)
+library(styler)
+library(usethis)
+```
+
+#API
+```{r warning=TRUE, r,message=FALSE}
+# Access information to our app
+
+edit_r_environ(scope = c("user", "project"))
+
+twitter_app <- oauth_app(
+  "twitter",
+  key = Sys.getenv("key"),
+  secret = Sys.getenv("secret")
+)
+
+twitter_token <- oauth2.0_token(
+  oauth_endpoint(
+    authorize = NULL,
+    access = "https://api.twitter.com/oauth2/token"
+  ),
+  twitter_app,
+  client_credentials = TRUE
+)
+
+# Get the revelant tag
+# Orignial whole dataset
+
+tw <- search_tweets(q = "#coronavirus", n = 1000, include_rts = FALSE, lang = "en")
+
+# time == created_at
+# location == location
+```
+
+#Data clean up
+```{r}
+tweets <- as.data.frame(tw %>% select(screen_name, text, location, created_at, user_id))
+tweets$stripped_text <- gsub("http\\S+", "", tweets$text) # text in stripped_text
+tweets$stripped_text <- gsub("[\r\n]", "", tweets$stripped_text)
+tweets$stripped_text <- gsub("[^\x01-\x7F]", "", tweets$stripped_text)
+tweets$location <- gsub("[^\x01-\x7F]", "", tweets$location)
+
+# location information
+register_google(key = Sys.getenv("geo_key"))
+tweets$location <- na_if(tweets$location, "")
+tweets <- na.omit(as.data.frame(tweets))
+location <- geocode(as.character(tweets$location))
+tweets <- na.omit(as.data.frame(cbind.data.frame(location, tweets)))
+```
+
+#remove stop words
+```{r}
+df <- tibble(id = 1:nrow(tweets), text = tweets$stripped_text)
+
+tweet_tokens <- df %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  group_by(id) %>%
+  count(word, sort = TRUE) %>%
+  arrange(id)
+```
+
+#sentiment analysis
+```{r}
+sentiments <- tweet_tokens %>%
+  left_join(get_sentiments("bing")) %>%
+  group_by(id) %>%
+  summarize(
+    positive = sum(sentiment == "positive", na.rm = TRUE),
+    negative = sum(sentiment == "negative", na.rm = TRUE),
+    netural = n() - positive - negative
+  ) %>%
+  mutate(
+    id,
+    sentiment = case_when(
+      positive > negative ~ "positive",
+      positive < negative ~ "negative",
+      TRUE ~ "netural"
+    )
+  ) %>%
+  left_join(select(df, id, text)) %>%
+  mutate(text = str_trunc(text, 100)) %>%
+  select(sentiment, positive, negative, netural, text)
+```
+
+
+
+
+
+
+#shiny app
+```{r}
+tweets <- tweets %>% mutate(sentiment = sentiments$sentiment)
+
+ui <- navbarPage(
+  "Twitter",
+
+  tabPanel(
+    "Map",
+    titlePanel("Tweet Location"),
+    leafletOutput("map"),
+    h4(textOutput("map_text"))
+  ),
+
+  tabPanel(
+    "Text Analysis",
+
+    # Date Range
+    sidebarPanel(
+      dateRangeInput("date",
+        strong("Date Range"),
+        start = "2020-03-05",
+        end = "2020-03-14",
+        min = "2020-03-05",
+        max = "2020-03-14"
+      ),
+      textOutput("date_range_text")
+    ),
+
+    # Visualization
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Globe", globeOutput("globe"), h4(textOutput("globe_text")), value = "globe"),
+        tabPanel("Word Cloud", plotOutput("word_cloud"), h4(textOutput("cloud_text"))),
+        tabPanel("Word Count", plotlyOutput("word_count"), h4(textOutput("word_count_text"))),
+        tabPanel("Term Frequency", DT::dataTableOutput("tf_idf"), h4(textOutput("tf_idf_text"))),
+        tabPanel("Sentiment Analysis", plotlyOutput("hist"), h4(textOutput("hist_text"))),
+        tabPanel("Sentiment Map", mapdeckOutput("myMap", height = "600px"), h4(textOutput("mymap_text"))),
+        tabPanel("TimeSeries", plotlyOutput("series"), h4(textOutput("series_text")))
+      )
+    )
+  )
+)
+```
+
+```{r}
+server <- function(input, output) {
+  # subset data in the date range
+  selected_date <- reactive({
+    req(input$date)
+    validate(need(
+      !is.na(input$date[1]) & !is.na(input$date[2]),
+      "Error: Please provide both a start and an end date."
+    ))
+    validate(need(
+      input$date[1] < input$date[2],
+      "Error: Start date should be earlier than end date."
+    ))
+    tweets %>%
+      filter(created_at > as.POSIXct(input$date[1]) &
+        created_at < as.POSIXct(input$date[2])) %>%
+      select(stripped_text, lon, lat, sentiment, created_at)
+  })
+
+  # remove stop word & count the words
+  countword <- reactive(
+    selected_date() %>%
+      mutate(id = 1:nrow(selected_date()), text = stripped_text) %>%
+      unnest_tokens(word, text) %>%
+      anti_join(stop_words) %>% # remove stop words
+      group_by(id) %>%
+      count(word, sort = TRUE) %>%
+      arrange(id)
+  )
+  key <- "pk.eyJ1IjoiamFuc29uYm9zc3MiLCJhIjoiY2s3ZWcxODA5MDhiYjNybXhkcWV0cnY4YyJ9.UzLgmwlMAATvgKmDEGo7lQ"
+
+  output$map <- renderLeaflet(
+    tweets %>%
+      leaflet() %>%
+      addProviderTiles(providers$Wikimedia) %>%
+      addMarkers(~lon, ~lat)
+  )
+
+  output$map_text <- renderText({
+    "The map provides the location of each tweet."
+  })
+
+  output$date_range_text <- renderText({
+    "You can select the date range of the tweets."
+  })
+
+  output$globe <- renderGlobe({
+    globejs(
+      lat = selected_date()$lat,
+      long = selected_date()$lon,
+      value = 10,
+      bg = "white", color = "#ffff00", atmosphere = TRUE,
+    )
+  })
+
+  output$globe_text <- renderText({
+    "The globe shows the location of the tweets in the selected date range."
+  })
+
+  output$word_cloud <- renderPlot(
+    countword() %>%
+      group_by(word) %>%
+      summarise(count = n()) %>%
+      with(wordcloud(word, count,
+        min.freq = 2,
+        max.words = 100,
+        random.order = FALSE,
+        colors = brewer.pal(8, "Dark2")
+      ))
+  )
+
+  output$cloud_text <- renderText({
+    "The word cloud shows the main words of the tweets in the selected date range."
+  })
+
+  output$word_count <- renderPlotly(
+    countword() %>%
+      group_by(word) %>%
+      summarise(count = n()) %>%
+      top_n(10, count) %>%
+      plot_ly(x = ~count, y = ~ fct_reorder(word, count)) %>%
+      add_bars(alpha = .7) %>%
+      layout(xaxis = list(title = "count"))
+  )
+
+  output$word_count_text <- renderText({
+    "The histogram shows the frequencies of the top 10 frequently used words of the tweets in the selected date range."
+  })
+
+  output$tf_idf <- DT::renderDataTable(
+    DT::datatable(countword() %>%
+      bind_tf_idf(word, id, n) %>%
+      top_n(3, tf_idf) %>%
+      select(id, word, n, tf_idf),
+    options = list(pageLength = 20)
+    )
+  )
+
+  output$tf_idf_text <- renderText({
+    "The table shows the 3 most important words of the tweets in the selected date range."
+  })
+
+  output$hist <- renderPlotly(
+    selected_date() %>%
+      plot_ly(y = ~sentiment, color = ~sentiment) %>%
+      add_histogram(alpha = .7) %>%
+      layout(
+        xaxis = list(title = "count"),
+        yaxis = list(title = "sentiment")
+      )
+  )
+
+  output$hist_text <- renderText({
+    "The bar chart shows the frequencies of the tweets' sentiment in the selected date range."
+  })
+
+  # create the leaflet map
+  output$bbmap <- renderLeaflet({
+    leaflet(tweets) %>%
+      addCircles(lng = ~lon, lat = ~lat) %>%
+      addTiles() %>%
+      addCircleMarkers(
+        data = tweets, lat = ~lat, lng = ~lon,
+        radius = 3,
+        stroke = FALSE, fillOpacity = 0.6, color = "red"
+      )
+  })
+
+  output$myMap <- renderMapdeck({
+    mapdeck(
+      token = key, style = mapdeck_style("light"),
+      # Angle camera down.
+      pitch = 20,
+      zoom = 100
+    ) %>%
+      add_scatterplot(
+        data = selected_date(),
+        lat = "lat",
+        lon = "lon",
+        radius = 100000,
+        layer_id = "scatter_layer",
+        palette = "viridis",
+        fill_colour = "sentiment",
+        legend = TRUE,
+        fill_opacity = 100, auto_highlight = TRUE,
+      )
+  })
+
+  output$mymap_text <- renderText({
+    "The map shows the location of the tweets with the tweets' sentiments in the selected date range."
+  })
+
+  ## plot time series of tweets
+  output$series <- renderPlotly({
+    ggplotly(selected_date() %>%
+      count(created_at) %>%
+      ggplot(aes(x = created_at, y = n)) +
+      geom_area(fill = "#69b3a2", alpha = 0.5) +
+      geom_line(color = "#69b3a2") +
+      ggplot2::theme_minimal() +
+      labs(x = "Time", y = "Twitter Frequency"))
+  })
+
+  output$series_text <- renderText({
+    "The time series plot plots the created time of the tweets in the selected date range."
+  })
+}
+```
+
+```{r}
+shinyApp(ui = ui, server = server)
+```
