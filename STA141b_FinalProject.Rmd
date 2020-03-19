@@ -50,7 +50,7 @@ tw <- search_tweets(q = "#nba", n = 18000, include_rts = FALSE, token = token, l
 ```{r}
 tweets <- as.data.frame(tw %>% select(screen_name, text, location, created_at, user_id))
 
-#text clean up
+# text clean up
 tweets$stripped_text <- gsub("http\\S+", "", tweets$text) # text in stripped_text
 tweets$stripped_text <- gsub("[\r\n]", "", tweets$stripped_text)
 tweets$stripped_text <- gsub("[^\x01-\x7F]", "", tweets$stripped_text)
@@ -108,19 +108,42 @@ tweets <- tweets %>% mutate(sentiment = sentiments$sentiment)
 
 ```{r}
 ui <- fluidPage(
+  shinythemes::themeSelector(),
   titlePanel("Twitter Sentiment Analysis"),
   headerPanel(h4("Tweets being analyzed are tweets with tag #nba created in last seven days")),
 
-  # Date Range
   sidebarPanel(
+    # Date Range
     dateRangeInput("date",
-      strong("Date Range"),
+      strong("Date Range of the Tweets"),
       start = "2020-03-12",
       end = "2020-03-19",
       min = "2020-03-12",
       max = "2020-03-19"
     ),
-    textOutput("date_range_text")
+    
+    conditionalPanel(
+      "input.tabselected=='Word Cloud'",
+      sliderInput("freq",
+        "Minimum Frequency:",
+        min = 1,  max = 50, value = 15
+      ),
+      sliderInput("max",
+        "Maximum Number of Words:",
+        min = 1,  max = 300,  value = 100
+      )
+    ),
+    conditionalPanel(
+      "input.tabselected=='Word Count'",
+      sliderInput("max_word",
+        "Maximum Number of Words:",
+        min = 1,  max = 20, value = 10
+      )
+    ),
+    conditionalPanel(
+      "input.tabselected=='Term Frequency'",
+      helpText("Click the column header to sort a column.")
+    )
   ),
 
   # Visualization
@@ -132,7 +155,8 @@ ui <- fluidPage(
       tabPanel("Term Frequency", DT::dataTableOutput("tf_idf"), h4(textOutput("tf_idf_text"))),
       tabPanel("Sentiment Analysis", plotlyOutput("hist"), h4(textOutput("hist_text"))),
       tabPanel("Sentiment Map", mapdeckOutput("Map", height = "600px"), h4(textOutput("mymap_text"))),
-      tabPanel("TimeSeries", plotlyOutput("series"), h4(textOutput("series_text")))
+      tabPanel("TimeSeries", plotlyOutput("series"), h4(textOutput("series_text"))),
+      id = "tabselected"
     )
   )
 )
@@ -171,10 +195,6 @@ server <- function(input, output) {
   # key for the map
   key <- "pk.eyJ1IjoiamFuc29uYm9zc3MiLCJhIjoiY2s3ZWcxODA5MDhiYjNybXhkcWV0cnY4YyJ9.UzLgmwlMAATvgKmDEGo7lQ"
 
-  output$date_range_text <- renderText({
-    "You can select the date range of the tweets."
-  })
-
   # plot the location
   output$globe <- renderGlobe({
     globejs(
@@ -195,8 +215,8 @@ server <- function(input, output) {
       group_by(word) %>%
       summarise(count = n()) %>%
       with(wordcloud(word, count,
-        min.freq = 2,
-        max.words = 100,
+        min.freq = input$freq,
+        max.words = input$max,
         random.order = FALSE,
         colors = brewer.pal(8, "Dark2")
       ))
@@ -211,7 +231,7 @@ server <- function(input, output) {
     countword() %>%
       group_by(word) %>%
       summarise(count = n()) %>%
-      top_n(10, count) %>%
+      top_n(input$max_word, count) %>%
       plot_ly(x = ~count, y = ~ fct_reorder(word, count)) %>%
       add_bars(alpha = .7) %>%
       layout(xaxis = list(title = "count"))
@@ -226,7 +246,8 @@ server <- function(input, output) {
     DT::datatable(countword() %>%
       bind_tf_idf(word, id, n) %>%
       top_n(3, tf_idf) %>%
-      select(id, word, n, tf_idf),
+      select(id, word, n, tf_idf) %>%
+      left_join(get_sentiments("bing")),
     options = list(pageLength = 20)
     )
   )
