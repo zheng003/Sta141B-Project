@@ -1,20 +1,4 @@
-library(httr)
-library(lubridate)
-library(tidyverse)
-library(rtweet)
-library(tidytext)
-library(jsonlite)
-library(ggmap)
-library(dplyr)
-library(shiny)
-library(wordcloud)
-library(plotly)
-library(threejs)
-library(mapdeck)
-library(styler)
-library(usethis)
-
-tweets <- load("~/Sta141B-Project/shiny app data.Rdata")
+load("data/shiny_app_data.Rdata")
 
 function(input, output) {
   # subset data in the date range
