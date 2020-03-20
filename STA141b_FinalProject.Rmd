@@ -306,8 +306,10 @@ server <- function(input, output) {
       geom_area(fill = "#69b3a2", alpha = 0.5) +
       geom_line(color = "#69b3a2") +
       ggplot2::theme_minimal() +
-      labs(x = "", y = "",
-           title = "Twitter Frequency")
+      labs(
+        x = "", y = "Count",
+        title = "Twitter Frequency about NBA"
+      )
   })
 
   output$series_text <- renderText({
@@ -319,4 +321,3 @@ server <- function(input, output) {
 ```{r}
 shinyApp(ui = ui, server = server)
 ```
-
