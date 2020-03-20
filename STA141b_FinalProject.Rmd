@@ -150,13 +150,41 @@ ui <- fluidPage(
   # Visualization
   mainPanel(
     tabsetPanel(
-      tabPanel("Globe", globeOutput("globe"), h4(textOutput("globe_text")), value = "globe"),
-      tabPanel("Word Cloud", plotOutput("word_cloud"), h4(textOutput("cloud_text"))),
-      tabPanel("Word Count", plotlyOutput("word_count"), h4(textOutput("word_count_text"))),
-      tabPanel("Term Frequency", DT::dataTableOutput("tf_idf"), h4(textOutput("tf_idf_text"))),
-      tabPanel("Sentiment Analysis", plotlyOutput("hist"), h4(textOutput("hist_text"))),
-      tabPanel("Sentiment Map", mapdeckOutput("Map", height = "600px"), h4(textOutput("mymap_text"))),
-      tabPanel("TimeSeries", plotOutput("series"), h4(textOutput("series_text"))),
+      tabPanel("Globe",
+        globeOutput("globe"),
+        h4(textOutput("globe_text")),
+        value = "globe"
+      ),
+      tabPanel(
+        "Word Cloud",
+        plotOutput("word_cloud"),
+        h4(textOutput("cloud_text"))
+      ),
+      tabPanel(
+        "Word Count",
+        plotlyOutput("word_count"),
+        h4(textOutput("word_count_text"))
+      ),
+      tabPanel(
+        "Term Frequency",
+        DT::dataTableOutput("tf_idf"),
+        h4(textOutput("tf_idf_text"))
+      ),
+      tabPanel(
+        "Sentiment Analysis",
+        plotlyOutput("hist"),
+        h4(textOutput("hist_text"))
+      ),
+      tabPanel(
+        "Sentiment Map",
+        mapdeckOutput("Map", height = "600px"),
+        h4(textOutput("mymap_text"))
+      ),
+      tabPanel(
+        "TimeSeries",
+        plotOutput("series"),
+        h4(textOutput("series_text"))
+      ),
       id = "tabselected"
     )
   )
@@ -215,7 +243,8 @@ server <- function(input, output) {
     countword() %>%
       group_by(word) %>%
       summarise(count = n()) %>%
-      with(wordcloud(word, count,
+      with(wordcloud(word,
+        count,
         min.freq = input$freq,
         max.words = input$max,
         random.order = FALSE,
@@ -239,7 +268,7 @@ server <- function(input, output) {
   )
 
   output$word_count_text <- renderText({
-    "The histogram shows the frequencies of the top 10 frequently used words of the tweets in the selected date range."
+    "The bar chart shows the frequencies of the top 10 frequently used words of the tweets in the selected date range."
   })
 
   # table of tf-idf
@@ -260,16 +289,17 @@ server <- function(input, output) {
   # plot the histogram of the sentiments
   output$hist <- renderPlotly(
     selected_date() %>%
-      plot_ly(y = ~sentiment, color = ~sentiment) %>%
+      plot_ly(y = ~sentiment, color = ~ format(created_at, "%y/%m/%d")) %>%
       add_histogram(alpha = .7) %>%
       layout(
         xaxis = list(title = "count"),
-        yaxis = list(title = "sentiment")
+        yaxis = list(title = "sentiment"),
+        barmode = "overlay"
       )
   )
 
   output$hist_text <- renderText({
-    "The bar chart shows the frequencies of the tweets' sentiment in the selected date range."
+    "The histogram shows the frequencies of the tweets' sentiment in the selected date range."
   })
 
   # plot the location of tweets with sentiment in different colors
