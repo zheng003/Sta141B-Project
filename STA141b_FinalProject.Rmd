@@ -21,6 +21,7 @@ library(threejs)
 library(mapdeck)
 library(styler)
 library(usethis)
+library(lubridate)
 ```
 
 #API
@@ -121,7 +122,7 @@ ui <- fluidPage(
       min = "2020-03-12",
       max = "2020-03-19"
     ),
-    
+
     conditionalPanel(
       "input.tabselected=='Word Cloud'",
       sliderInput("freq",
@@ -155,7 +156,7 @@ ui <- fluidPage(
       tabPanel("Term Frequency", DT::dataTableOutput("tf_idf"), h4(textOutput("tf_idf_text"))),
       tabPanel("Sentiment Analysis", plotlyOutput("hist"), h4(textOutput("hist_text"))),
       tabPanel("Sentiment Map", mapdeckOutput("Map", height = "600px"), h4(textOutput("mymap_text"))),
-      tabPanel("TimeSeries", plotlyOutput("series"), h4(textOutput("series_text"))),
+      tabPanel("TimeSeries", plotOutput("series"), h4(textOutput("series_text"))),
       id = "tabselected"
     )
   )
@@ -297,14 +298,16 @@ server <- function(input, output) {
   })
 
   ## plot time series of tweets
-  output$series <- renderPlotly({
-    ggplotly(selected_date() %>%
-      count(created_at) %>%
-      ggplot(aes(x = created_at, y = n)) +
+  output$series <- renderPlot({
+    selected_date() %>%
+      mutate(freq = date(created_at)) %>%
+      count(freq) %>%
+      ggplot(aes(x = freq, y = n)) +
       geom_area(fill = "#69b3a2", alpha = 0.5) +
       geom_line(color = "#69b3a2") +
       ggplot2::theme_minimal() +
-      labs(x = "Time", y = "Twitter Frequency"))
+      labs(x = "", y = "",
+           title = "Twitter Frequency")
   })
 
   output$series_text <- renderText({
@@ -316,3 +319,4 @@ server <- function(input, output) {
 ```{r}
 shinyApp(ui = ui, server = server)
 ```
+
