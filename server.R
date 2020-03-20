@@ -1,14 +1,28 @@
+library(httr)
+library(lubridate)
+library(tidyverse)
+library(rtweet)
+library(tidytext)
+library(ggmap)
+library(dplyr)
+library(shiny)
+library(wordcloud)
+library(plotly)
+library(threejs)
+library(mapdeck)
+library(usethis)
+
 load("data/shiny_app_data.Rdata")
 
 function(input, output) {
   # subset data in the date range
   selected_date <- reactive({
     req(input$date)
-    validate(need(
+    shiny::validate(need(
       !is.na(input$date[1]) & !is.na(input$date[2]),
       "Error: Please provide both a start and an end date."
     ))
-    validate(need(
+    shiny::validate(need(
       input$date[1] <= input$date[2],
       "Error: Start date should be earlier than end date."
     ))
@@ -135,7 +149,7 @@ function(input, output) {
     "The map shows the location of the tweets with the tweets' sentiments in the selected date range."
   })
 
-  ## plot time series of tweets
+  # plot time series of tweets
   output$series <- renderPlot({
     selected_date() %>%
       mutate(freq = date(created_at)) %>%

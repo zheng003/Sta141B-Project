@@ -3,7 +3,6 @@ library(lubridate)
 library(tidyverse)
 library(rtweet)
 library(tidytext)
-library(jsonlite)
 library(ggmap)
 library(dplyr)
 library(shiny)
@@ -11,7 +10,6 @@ library(wordcloud)
 library(plotly)
 library(threejs)
 library(mapdeck)
-library(styler)
 library(usethis)
 
 
@@ -96,4 +94,3 @@ fluidPage(
     )
   )
 )
-

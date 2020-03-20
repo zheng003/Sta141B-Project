@@ -11,7 +11,6 @@ library(lubridate)
 library(tidyverse)
 library(rtweet)
 library(tidytext)
-library(jsonlite)
 library(ggmap)
 library(dplyr)
 library(shiny)
@@ -21,11 +20,10 @@ library(threejs)
 library(mapdeck)
 library(styler)
 library(usethis)
-library(lubridate)
 ```
 
 #API
-```{r warning=TRUE, r,message=FALSE}
+```{r message=FALSE, warning=FALSE}
 # Access information to our app
 
 edit_r_environ(scope = c("user", "project"))
@@ -196,11 +194,11 @@ server <- function(input, output) {
   # subset data in the date range
   selected_date <- reactive({
     req(input$date)
-    validate(need(
+    shiny::validate(need(
       !is.na(input$date[1]) & !is.na(input$date[2]),
       "Error: Please provide both a start and an end date."
     ))
-    validate(need(
+    shiny::validate(need(
       input$date[1] <= input$date[2],
       "Error: Start date should be earlier than end date."
     ))
