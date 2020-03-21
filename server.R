@@ -165,6 +165,6 @@ function(input, output) {
   })
 
   output$series_text <- renderText({
-    "The time series plot plots the created time of the tweets in the selected date range."
+    "The time series plot plots the frequency of tweets based on the created time of the tweets in the selected date range."
   })
 }

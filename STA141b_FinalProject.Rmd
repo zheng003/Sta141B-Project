@@ -26,7 +26,7 @@ library(usethis)
 ```{r message=FALSE, warning=FALSE}
 # Access information to our app
 
-edit_r_environ(scope = c("user", "project"))
+# edit_r_environ(scope = "project")
 
 token <- create_token(
   app = "STA 141B Final Project",
@@ -341,7 +341,7 @@ server <- function(input, output) {
   })
 
   output$series_text <- renderText({
-    "The time series plot plots the created time of the tweets in the selected date range."
+    "The time series plot plots the frequency of tweets based on the created time of the tweets in the selected date range."
   })
 }
 ```
